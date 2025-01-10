@@ -12,6 +12,19 @@ services:
       - "1313:1313"
     networks:
         - mylocal
+  
+  db:
+    image: postgres
+    container_name: postgres
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USER}   
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    networks:
+      - mylocal
+      
   app:
     build: ./proxy
     container_name: proxy
@@ -23,6 +36,8 @@ services:
       - DB_HOST=db
     networks:
         - mylocal
+    depends_on:
+      - db
   swagger:
     image: swaggerapi/swagger-ui
     environment:
@@ -45,18 +60,6 @@ services:
       - swagger
     networks:
       - mylocal 
-
-  db:
-    image: postgres
-    container_name: postgres
-    environment:
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_USER: ${DB_USER}   
-      POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "5432:5432"
-    networks:
-      - mylocal
 
 networks:
   mylocal:
