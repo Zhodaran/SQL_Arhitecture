@@ -16,12 +16,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 	"go.uber.org/zap"
 	_ "studentgit.kata.academy/Zhodaran/go-kata/docs"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/joho/godotenv"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"studentgit.kata.academy/Zhodaran/go-kata/controller"
 	"studentgit.kata.academy/Zhodaran/go-kata/internal/auth"
@@ -68,16 +69,35 @@ func (s *Server) Serve() {
 }
 
 func main() {
+
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error lading .env file")
+		log.Fatal("Error loading .env file")
 	}
 
-	db, err := sql.Open("postgres", os.Getenv("DB_USER")+":"+os.Getenv("DB_PASSWORD")+"@"+os.Getenv("DB_HOST")+":"+os.Getenv("DB_PORT")+"/"+os.Getenv("DB_NAME"))
+	connStr := fmt.Sprintf("user=%s password=%s host=%s port=%s dbname=%s sslmode=disable",
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_NAME"),
+	)
+	fmt.Println("DB_USER:", os.Getenv("DB_USER"))
+	fmt.Println("DB_PASSWORD:", os.Getenv("DB_PASSWORD"))
+	fmt.Println("DB_NAME:", os.Getenv("DB_NAME"))
+	fmt.Println("DB_HOST:", os.Getenv("DB_HOST"))
+	fmt.Println("DB_PORT:", os.Getenv("DB_PORT"))
+	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		log.Fatal("Cannot connect to the database:", err)
+	}
+
+	runMigrations(db)
 
 	userRepo := repository.NewPostgresUserRepository(db)
 	userController := control.NewUserController(userRepo)
@@ -110,6 +130,21 @@ func main() {
 		fmt.Printf("Ошибка при завершении работы: %v\n", err)
 	} else {
 		log.Println("Server stopped gracefully")
+	}
+}
+
+func runMigrations(db *sql.DB) {
+	migrationSQL := `
+	CREATE TABLE IF NOT EXISTS users (
+		id SERIAL PRIMARY KEY,
+		username VARCHAR(50) NOT NULL,
+		password VARCHAR(255) NOT NULL,
+		deleted_at TIMESTAMP NULL
+	);`
+
+	_, err := db.Exec(migrationSQL)
+	if err != nil {
+		log.Fatalf("Error running migrations: %v", err)
 	}
 }
 
